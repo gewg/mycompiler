@@ -2,68 +2,61 @@
  * Auther: Wei Ge
  * Date: 23/1/18
  * Lexer: Break the inputed language into tokens
-*/
+ */
 
 #include <stdio.h>
 #include <string>
+#include "lexer.h"
 
-// type of token
-enum Token {
-    // end of file
-    tok_eof = -1,
-
-    // commands
-    tok_def = -2,
-    tok_extern = -3,
-
-    // primary
-    tok_identifier = -4,
-    tok_number = -5,
-};
-
-static std::string IdentifierStr;
-static double NumVal;
-
+std::string IdentifierStr;
+double NumVal;
 
 /**
  * Transfer the input to token, each time outputs one token
-*/
-int gettok(){
+ */
+int gettok()
+{
     static int LastChar = ' ';
 
     // skip the whitespace
-    while (isspace(LastChar)){
+    while (isspace(LastChar))
+    {
         LastChar = getchar();
     }
 
     // recognize the input as identifier
-    if (isalpha(LastChar)){
+    if (isalpha(LastChar))
+    {
 
         // get the whole phrase
-        while (isalpha(LastChar)){
+        while (isalpha(LastChar))
+        {
             IdentifierStr += LastChar;
             LastChar = getchar();
         }
 
         // identify the identifier
-        if (IdentifierStr == "def"){
+        if (IdentifierStr == "def")
+        {
             return tok_def;
         }
-        if (IdentifierStr == "extern"){
+        if (IdentifierStr == "extern")
+        {
             return tok_extern;
         }
 
         // if the identifier is unknown, output the tok_identifier
         return tok_identifier;
-
     }
 
     // recognize the input as number
-    if (isdigit(LastChar) || LastChar == '.'){
+    if (isdigit(LastChar) || LastChar == '.')
+    {
         std::string NumStr;
 
         // get the whole phrase
-        while (isdigit(LastChar) || LastChar == '.'){
+        while (isdigit(LastChar) || LastChar == '.')
+        {
             NumStr += LastChar;
             LastChar = getchar();
         }
@@ -73,20 +66,24 @@ int gettok(){
     }
 
     // recognize the input as comment
-    if (LastChar == '#'){
+    if (LastChar == '#')
+    {
         // skip the whole comment
-        while (LastChar != EOF && LastChar != '\n' && LastChar != '\r'){
+        while (LastChar != EOF && LastChar != '\n' && LastChar != '\r')
+        {
             LastChar = getchar();
         }
 
         // 递归, 输出下一个token
-        if (LastChar != EOF){
+        if (LastChar != EOF)
+        {
             return gettok();
         }
     }
 
     // recognize the input as end of file
-    if (LastChar == EOF){
+    if (LastChar == EOF)
+    {
         return tok_eof;
     }
 
@@ -94,4 +91,4 @@ int gettok(){
     int ThisChar = LastChar;
     LastChar = getchar();
     return ThisChar;
-} 
+}
