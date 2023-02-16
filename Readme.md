@@ -40,23 +40,43 @@
 
      * 忽略**括号**token
 
-  2. 为不同的AST类型, 生成转换function
+  2. 为不同的AST类型, 生成转换function的parser。Parser接收的类型分为Basic expression 和 Binary expression生成
 
      * numeric
      * parentheses
      * identifier
 
-  3. primary
+  3. driver
 
      * 各种parser的入口
   
 * Tips
 
-  * 在每一个Parser中会更新CurToken的值到下一位, 这是为了在处理expression时, 可以递归处理其中的每一个元素
+  * 在每一个Parser中会**<u>更新CurToken的值到下一位</u>**, 这是为了在处理expression时, 可以递归处理其中的每一个元素
+
+  * **parse binary expression**
+
+    * 使用Operator-Precedence Parsing, 基于操作符优先级。
+
+    * bianry expression = basic expression + binary operator.
+
+      所以parse binary expression, 采取: 
+
+      parse basic expression -> 看下一个token是否是operator -> parse basic expression -> 看下一个token是否是operator -> ...的流程
+
+  * Expression
+
+    * Basic: 简单表达式
+
+      x = 10
+
+    * Binary: 两个基本表示式组成
+
+      y = x + 5
 
 ## AST Parser
 
-* parse number
+* **parse number (basic)**
 
   * 调用: CurTok == tok_number
   * step
@@ -64,7 +84,7 @@
     2. 把CurTok移动到下一位
     3. 返回NumberExprAST
 
-* parse parentheses expression
+* **parse parentheses expression (basic)**
 
   * 调用: CurTok == '('
 
@@ -86,7 +106,7 @@
 
     * While we could do it this way, the most important role of parentheses are to guide the parser and provide grouping. Once the parser constructs the AST, parentheses are not needed.
 
-* parse identifier
+* **parse identifier (basic)**
 
   * 调用: CurTok == tok_identifier
   * step
@@ -98,4 +118,34 @@
     6. 如果CurTok不是'(', 遍历读取args
     7. 吃掉')'
 
-* parse
+## Expression Parser
+
+* **ParseExpression (处理所有的expression的入口)**
+
+* **ParseBinOpRHS (处理binary operator)**
+
+  * step
+
+    1. parse **basic expression (LHS)**
+
+    2. parse binary operator为**TokPrec**, 如果<u>优先级不够或者不是binary op</u>, 则直接return LHS
+
+       * 使用GetTokPrecedence()
+
+    3. parse **下一个basic expression (RHS)**
+
+    4. parse 下一个binary operator为**NextPrec**
+
+    5. 比较**TokPrec**和**NextPrec**
+
+       * 如果TokPrec < NextPrec, 递归调用ParseBinOpRHS, 先parse后一个包括RHS的expression
+
+         **<u>(只比较相邻的两个Operator就可以确定是否可以计算当前binary expression, 不需要在整个expression中找到优先级最高的binary expression先计算)</u>**
+
+    6. 合并LHS和RHS
+
+  * tips
+
+    * 因为'( )'被当作basic expression会直接计算, 所以binary expression中不需要考虑括号的优先级
+
+* **parse (binary)**

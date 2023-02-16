@@ -111,8 +111,62 @@ std::unique_ptr<PrototypeAST> LogErrorP(const char *Str)
 }
 
 /**************************** Basic Expression parse ****************************/
-// 普通expression的parser的入口
-static std::unique_ptr<ExprAST> ParsePrimary()
+
+// parse expressions
+// 所有Expression = basic expression + binary operator
+static std::unique_ptr<ExprAST> ParseAllExpression()
+{
+    // 首先parse LHS basic expression
+    auto LHS = ParseBasicExpression();
+    if (!LHS) return nullptr;
+
+    // 然后处理RHS的expression
+    return ParseBinOpRHS(0, std::move(LHS));
+}
+
+/*
+    parse RHS expression, 处理binary operator右边的expression
+
+    ExprPrec: expression优先级的阈值, 如果RHS bianry expression优先级低于此阈值, 不进行处理 (就是operator优先级)
+    LHS: 本RHS expression的LHS expression
+*/
+static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS) 
+{
+    while (true)
+    {
+        // 获取当前token(operator)优先级
+        int TokPrec = GetTokenPrecedence();
+        // 如果低于阈值, 不处理
+        if (TokPrec < ExprPrec) return LHS;
+
+        // 记录当前bianry operator
+        int BinOp = CurTok;
+        getNextToken(); // eay current binary operator
+
+        // parse RHS expression
+        auto RHS = ParseBasicExpression();
+        if (!RHS) return nullptr;
+
+        // 记录RHS expression后面的binary operator
+        int NextTokPrec = GetTokenPrecedence();
+
+        // 如果后面的binary operator优先级更高, 则先parse 后面的包括RHS的expression
+        if (TokPrec < NextTokPrec)
+        {
+            RHS = ParseBinOpRHS(TokPrec+1, std::move(RHS));
+            if (!RHS)
+            {
+                return nullptr;
+            }
+        }
+
+        // 合并LHS和RHS为一个Binary Expression AST
+        LHS = std::make_unique<BinaryExprAST>(BinOp, std::move(LHS), std::move(RHS));
+    }
+}
+
+// basic expression的parser分配器
+static std::unique_ptr<ExprAST> ParseBasicExpression()
 {
     switch (CurTok)
     {
@@ -184,18 +238,18 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
                 return nullptr;
             }
 
-            // 如果是)
+            // 如果是')'
             if (CurTok == ')')
             {
                 break;
             }
 
-            // 如果arg之间不是,
+            // 如果arg之间不是','
             if (CurTok != ',')
             {
                 return LogError("Expected ',' or ')' in arguments")
             }
-            // 吃掉,
+            // 吃掉','
             getNextToken();
         }
     }
@@ -205,3 +259,26 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
 }
 
 /**************************** Binary Parse ****************************/
+// 储存binary operator
+static std::map<char, int> BinopPrecedence;
+
+// 检测和返回CurrToken是否是binary operator, 如果不是就返回 -1
+static int GetTokenPrecedence()
+{
+    // 如果CurrToken不是isascii码, 则肯定不是operator
+    if (!isascii(CurTok)) return -1;
+
+    // 如果CurrToken不在binop表中, 咋不是operator
+    int TokPrec = BinopPrecedence[CurTok];
+    if (TokPrec <= 0) return -1;
+    return TokPrec;
+}
+
+int main()
+{
+    // 根据等级排列operator
+    BinopPrecedence['<'] = 10;
+    BinopPrecedence['+'] = 20;
+    BinopPrecedence['-'] = 20;
+    BinopPrecedence['*'] = 40; // highest
+}
