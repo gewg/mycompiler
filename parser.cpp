@@ -110,6 +110,33 @@ std::unique_ptr<PrototypeAST> LogErrorP(const char *Str)
     return nullptr;
 }
 
+/**************************** Parser Driver ****************************/
+void MainParser()
+{
+    while (true)
+    {
+        fprintf(stderr, "ready> ");
+        switch (CurTok)
+        {
+            case tok_eof:
+                return;
+            // 忽略;
+            case ';':
+                getNextToken();
+                break;
+            case tok_def:
+                HandleDefinition();
+                break;
+            case tok_extern:
+                HandleExtern();
+                break;
+            default:
+                HandleTopLevelExpression();
+                break;
+        }
+    }
+}
+
 /**************************** Basic Expression parse ****************************/
 
 // parse expressions
@@ -118,7 +145,8 @@ static std::unique_ptr<ExprAST> ParseAllExpression()
 {
     // 首先parse LHS basic expression
     auto LHS = ParseBasicExpression();
-    if (!LHS) return nullptr;
+    if (!LHS)
+        return nullptr;
 
     // 然后处理RHS的expression
     return ParseBinOpRHS(0, std::move(LHS));
@@ -130,14 +158,15 @@ static std::unique_ptr<ExprAST> ParseAllExpression()
     ExprPrec: expression优先级的阈值, 如果RHS bianry expression优先级低于此阈值, 不进行处理 (就是operator优先级)
     LHS: 本RHS expression的LHS expression
 */
-static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS) 
+static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS)
 {
     while (true)
     {
         // 获取当前token(operator)优先级
         int TokPrec = GetTokenPrecedence();
         // 如果低于阈值, 不处理
-        if (TokPrec < ExprPrec) return LHS;
+        if (TokPrec < ExprPrec)
+            return LHS;
 
         // 记录当前bianry operator
         int BinOp = CurTok;
@@ -145,7 +174,8 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<Expr
 
         // parse RHS expression
         auto RHS = ParseBasicExpression();
-        if (!RHS) return nullptr;
+        if (!RHS)
+            return nullptr;
 
         // 记录RHS expression后面的binary operator
         int NextTokPrec = GetTokenPrecedence();
@@ -153,7 +183,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<Expr
         // 如果后面的binary operator优先级更高, 则先parse 后面的包括RHS的expression
         if (TokPrec < NextTokPrec)
         {
-            RHS = ParseBinOpRHS(TokPrec+1, std::move(RHS));
+            RHS = ParseBinOpRHS(TokPrec + 1, std::move(RHS));
             if (!RHS)
             {
                 return nullptr;
@@ -217,13 +247,13 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
     getNextToken(); // eat Identifier
 
     // 当作Variable处理
-    if (CurTok != '(') 
+    if (CurTok != '(')
         return std::make_unique<VariableExprAST>(IdName);
-    
+
     // 当作function处理
     getNextToken(); // eat (
     // 读取args
-    std::vector<std::unique_ptr<ExprAST> > args;
+    std::vector<std::unique_ptr<ExprAST>> args;
     if (CurTok != ')')
     {
         while (true)
@@ -254,31 +284,122 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
         }
     }
     // 吃掉)
-    getNextToken()
-    return std::make_unique<CallExprAST>(IdName, std::move(args));
+    getNextToken() return std::make_unique<CallExprAST>(IdName, std::move(args));
 }
 
 /**************************** Binary Parse ****************************/
 // 储存binary operator
-static std::map<char, int> BinopPrecedence;
+std::map<char, int> BinopPrecedence;
 
 // 检测和返回CurrToken是否是binary operator, 如果不是就返回 -1
 static int GetTokenPrecedence()
 {
     // 如果CurrToken不是isascii码, 则肯定不是operator
-    if (!isascii(CurTok)) return -1;
+    if (!isascii(CurTok))
+        return -1;
 
     // 如果CurrToken不在binop表中, 咋不是operator
     int TokPrec = BinopPrecedence[CurTok];
-    if (TokPrec <= 0) return -1;
+    if (TokPrec <= 0)
+        return -1;
     return TokPrec;
 }
-
-int main()
+/**************************** Parse the prototype ****************************/
+// parse 'def'
+static std::unique_ptr<FunctionAST> ParseDefinition()
 {
-    // 根据等级排列operator
-    BinopPrecedence['<'] = 10;
-    BinopPrecedence['+'] = 20;
-    BinopPrecedence['-'] = 20;
-    BinopPrecedence['*'] = 40; // highest
+    getNextToken(); // eat def.
+    auto Proto = ParsePrototype();
+    if (!Proto)
+        return nullptr;
+
+    if (auto E = ParseExpression())
+        return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+    return nullptr;
+}
+
+// parse 'extern'
+static std::unique_ptr<PrototypeAST> ParseExtern()
+{
+    getNextToken(); // eat extern.
+    return ParsePrototype();
+}
+
+// parse 'def' 和 'extern' 后面的函数原型
+static std::unique_ptr<PrototypeAST> ParsePrototype()
+{
+    // 如果不是
+    if (CurTok != tok_identifier)
+        return LogErrorP("Expected function name in prototype");
+
+    // 读取函数名
+    std::string FnName = IdentifierStr;
+    getNextToken();
+
+    // 读取函数参数
+    if (CurTok != '(')
+        return LogErrorP("Expected '(' in prototype");
+    // 读取参数
+    std::vector<std::string> ArgNames;
+    while (getNextToken() == tok_identifier)
+    {
+        ArgNames.push_back(IdentifierStr); // IdentifierStr在lexer中, 储存了string
+    }
+    if (CurTok != ')')
+        return LogErrorP("Expected ')' in prototype");
+    getNextToken();
+
+    return std::make_unique<PrototypeAST>(FnName, ArgNames);
+}
+
+/*************************** Top-level parser ****************************/
+static std::unique_ptr<FunctionAST> ParseTopLevelExpr()
+{
+    if (auto E = ParseExpression())
+    {
+        // Make an anonymous proto.
+        auto Proto = std::make_unique<PrototypeAST>("", std::vector<std::string>());
+        return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+    }
+    return nullptr;
+}
+
+static void HandleDefinition()
+{
+    if (ParseDefinition())
+    {
+        fprintf(stderr, "Parsed a function definition.\n");
+    }
+    else
+    {
+        // Skip token for error recovery.
+        getNextToken();
+    }
+}
+
+static void HandleExtern()
+{
+    if (ParseExtern())
+    {
+        fprintf(stderr, "Parsed an extern\n");
+    }
+    else
+    {
+        // Skip token for error recovery.
+        getNextToken();
+    }
+}
+
+static void HandleTopLevelExpression()
+{
+    // Evaluate a top-level expression into an anonymous function.
+    if (ParseTopLevelExpr())
+    {
+        fprintf(stderr, "Parsed a top-level expr\n");
+    }
+    else
+    {
+        // Skip token for error recovery.
+        getNextToken();
+    }
 }

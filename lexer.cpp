@@ -46,6 +46,7 @@ int gettok()
         }
 
         // if the identifier is unknown, output the tok_identifier
+        // 可能是: 函数名, 函数的参数
         return tok_identifier;
     }
 

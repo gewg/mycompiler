@@ -10,7 +10,7 @@
   3. Parser: switch(CurToken), 决定使用哪个Parser
   4. 
 
-## Lexer
+# <u>Lexer</u>
 
 * 词法分析: divide program text into tokens
 
@@ -28,7 +28,7 @@
 
      * 判读是否是文件结尾
 
-## Parser
+# <u>Parser</u>
 
 * 语法分析: read token, store the information from token to AST
 
@@ -74,6 +74,28 @@
 
       y = x + 5
 
+## Parser Driver
+
+* **eof**
+* **;**
+  * 忽略
+* **prototype**
+  * **def**: function ast
+  * **extern**: prototype ast
+  * prototype ast为def和extern之后的函数的ast
+* <u>basic expression</u> (default)
+  * **number tok:** number ast
+  * **parentheses tok**: parentheses ast
+  * **identifier tok**
+    * 使用variable ast
+    * 储存为call ast
+* <u>binary expression</u> (default)
+  * bianry expression ast
+
+## Top Level Parser
+
+* 封装parser, 添加了打印信息
+
 ## AST Parser
 
 * **parse number (basic)**
@@ -118,7 +140,7 @@
     6. 如果CurTok不是'(', 遍历读取args
     7. 吃掉')'
 
-## Expression Parser
+## Binary Expression Parser
 
 * **ParseExpression (处理所有的expression的入口)**
 
@@ -148,4 +170,14 @@
 
     * 因为'( )'被当作basic expression会直接计算, 所以binary expression中不需要考虑括号的优先级
 
-* **parse (binary)**
+## Prototype Parser
+
+* 处理函数原型
+  * def
+  * extern
+  * 函数声明
+* step
+  1. 判断是否是prototype
+  2. 读取函数名
+  3. 判断是否有'( )', 并读取和储存函数参数。参数储存为string
+  4. 返回**函数名**和**函数参数vector**
