@@ -1,6 +1,6 @@
 /**
  * Auther: Wei Ge
- * Date: 23/1/19
+ * Date: Jan 23, 2023
  * Parser: Input token, output the AST
  */
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "lexer.h"
+#include "parser.h"
 
 /**************************** Build the AST strcuture ****************************/
 
@@ -27,6 +28,7 @@ class NumberExprAST : public ExprAST
 
 public:
     NumberExprAST(double Val) : Val(Val) {}
+    Value *codegen() override;
 };
 
 // the expression for referencing a variable
@@ -52,10 +54,10 @@ public:
 class CallExprAST : public ExprAST
 {
     std::string Callee;
-    std::vector<std::unique_ptr<ExprAST>> Args;
+    std::vector<std::unique_ptr<ExprAST> > Args;
 
 public:
-    CallExprAST(const std::string &Callee, std::vector<std::unique_ptr<ExprAST>> Args)
+    CallExprAST(const std::string &Callee, std::vector<std::unique_ptr<ExprAST> > Args)
         : Callee(Callee), Args(std::move(Args)) {} // FIXME:Args(std::move(Args) error
 };
 
@@ -93,7 +95,7 @@ public:
 // read token one by one
 // store the token which will be transfered into CurTok
 static int CurTok;
-static int getNextToken()
+int getNextToken()
 {
     return CurTok = gettok();
 }
@@ -157,6 +159,8 @@ static std::unique_ptr<ExprAST> ParseAllExpression()
 
     ExprPrec: expression优先级的阈值, 如果RHS bianry expression优先级低于此阈值, 不进行处理 (就是operator优先级)
     LHS: 本RHS expression的LHS expression
+
+    ParseBinOpRHS不会改变expression中元素的顺序, 而是会把优先级高的BinOpExpr先组合成ast。eg.  a+b*c = a + AST(b*c) = AST(a+AST(b*c))
 */
 static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS)
 {
@@ -253,7 +257,7 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
     // 当作function处理
     getNextToken(); // eat (
     // 读取args
-    std::vector<std::unique_ptr<ExprAST>> args;
+    std::vector<std::unique_ptr<ExprAST> > args;
     if (CurTok != ')')
     {
         while (true)

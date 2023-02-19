@@ -28,6 +28,8 @@
 
      * 判读是否是文件结尾
 
+
+
 # <u>Parser</u>
 
 * 语法分析: read token, store the information from token to AST
@@ -170,6 +172,10 @@
 
     * 因为'( )'被当作basic expression会直接计算, 所以binary expression中不需要考虑括号的优先级
 
+    * ParseBinOpRHS不会改变expression中元素的顺序, 而是会把优先级高的BinOpExpr先组合成ast, 从而变成内层的ast
+
+      eg. a + b * c = a + AST(b * c) = AST(a + AST(b*c))
+
 ## Prototype Parser
 
 * 处理函数原型
@@ -181,3 +187,49 @@
   2. 读取函数名
   3. 判断是否有'( )', 并读取和储存函数参数。参数储存为string
   4. 返回**函数名**和**函数参数vector**
+
+
+
+# <u>codegen</u>
+
+* Transfer AST into IR
+* 实现步骤
+  1. 给ExprAST(所有AST的父类)添加<u>codegen()</u>, 此function返回LLVM Value object的内存 (不使用智能指针, 直接使用指针)
+  2. 创建变量
+     * **LLVMContext**
+       * 黑盒子。拥有大量core llvm data, eg. constant value table
+     * **IRBuilder**
+       * 保存<u>插入新instruction的地方</u>
+       * 拥有<u>创建新instruction的方法</u>
+     * **Module**
+       * LLVM IR用于储存代码的结构
+         * 包括全部Value object的内存 (函数和全局变量)
+     * **NamedValues (map<string, value>)**
+       * 保存了映射关系: ast中保存的值 和 value
+  3. 把不同类型的AST转换成Value
+* **属性Value**
+  * codegen()产出的static single assignment
+  * 为IR中的代码段, Value组成IR
+
+## AST -> Value(IR中的代码段)
+
+* **Number expression**
+
+  * llvm中储存numberic: ConstantFP
+
+* **Variable expression**
+
+  * step
+    1. 使用NamedValues表获得variable的LLVM Value
+    2. 返回llvm value
+
+* **Binary expression**
+
+  * step
+
+    1. 获得binary operator两边expression的llvm value, 通过调用**LHS**和**RHS**的codegen
+    2. 根据binary operator的种类, 调用IRBuilder的插入新instruction的方法, 添加binary expression到ir
+
+  * 转换时, 会递归转换LHS和RHS。所以会**先转换最内层的LHS和RHS**。而**最内层的LHS和RHS是优先级高的Binary Operate Expression**
+
+    AST结构例子: AST(a+AST(b*c))。会先转换AST(b * c)成Value, 添加到IR

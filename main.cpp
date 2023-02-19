@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "lexer.h"
+#include "parser.h"
 
 int main(){
     // 根据等级排列operator
@@ -8,5 +9,5 @@ int main(){
     BinopPrecedence['-'] = 20;
     BinopPrecedence['*'] = 40; // highest
 
-    
+    MainParser();
 }
