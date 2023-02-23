@@ -8,10 +8,10 @@
   * **code -> ast -> 调用ast的codegen生成value -> ir**
   
 * **whole process**
-  1. Lexer
-  2. Parser
-  3. Codegen
-     * 每个AST会有自己的codegen生成Value, 并不是把AST作为参数传递生成Value
+  1. **Driver**调用**Lexer**, 获得一个token
+  2. 根据token的类型, 调用 (**Parser**&**Codegen**)
+     1. **Parser**根据token类型判断要生成的AST。然后持续调用**Lexer**和**别的Parser**, 直到生成完整AST
+     2. 调用生成好的AST的**Codegen**, 生成和储存IR
 
 # <u>Lexer</u>
 
@@ -286,3 +286,7 @@
     6. 使用**verifyFunction()**检测codegen的结果有没有问题。如果没有问题，return **FunctionObject**
 
     7. 如果有问题, 清空这个function
+
+
+
+# <u>Optimization</u>
