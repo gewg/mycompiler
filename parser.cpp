@@ -28,7 +28,7 @@ class NumberExprAST : public ExprAST
 
 public:
     NumberExprAST(double Val) : Val(Val) {}
-    Value *codegen() override;
+    Value* codegen() override;
 };
 
 // the expression for referencing a variable
@@ -143,7 +143,7 @@ void MainParser()
 
 // parse expressions
 // 所有Expression = basic expression + binary operator
-static std::unique_ptr<ExprAST> ParseAllExpression()
+static std::unique_ptr<ExprAST> ParseExpression()
 {
     // 首先parse LHS basic expression
     auto LHS = ParseBasicExpression();
@@ -313,10 +313,11 @@ static int GetTokenPrecedence()
 static std::unique_ptr<FunctionAST> ParseDefinition()
 {
     getNextToken(); // eat def.
+    // 读取function 原型
     auto Proto = ParsePrototype();
     if (!Proto)
         return nullptr;
-
+    // 读取function body
     if (auto E = ParseExpression())
         return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
     return nullptr;
@@ -332,7 +333,7 @@ static std::unique_ptr<PrototypeAST> ParseExtern()
 // parse 'def' 和 'extern' 后面的函数原型
 static std::unique_ptr<PrototypeAST> ParsePrototype()
 {
-    // 如果不是
+    // 判断def or extern后面跟的是不是函数原型
     if (CurTok != tok_identifier)
         return LogErrorP("Expected function name in prototype");
 

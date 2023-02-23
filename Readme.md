@@ -4,11 +4,14 @@
   * 读取char, 组合成词, 每个词为一个token
 * parser
   * 读取token, 组合成ast
-* whole process
-  1. lexer: getToken()
-  2. 
-  3. Parser: switch(CurToken), 决定使用哪个Parser
-  4. 
+* **whole pipeline**
+  * **code -> ast -> 调用ast的codegen生成value -> ir**
+  
+* **whole process**
+  1. Lexer
+  2. Parser
+  3. Codegen
+     * 每个AST会有自己的codegen生成Value, 并不是把AST作为参数传递生成Value
 
 # <u>Lexer</u>
 
@@ -81,7 +84,7 @@
 * **eof**
 * **;**
   * 忽略
-* **prototype**
+* **prototype** (函数原型)
   * **def**: function ast
   * **extern**: prototype ast
   * prototype ast为def和extern之后的函数的ast
@@ -92,7 +95,7 @@
     * 使用variable ast
     * 储存为call ast
 * <u>binary expression</u> (default)
-  * bianry expression ast
+  * **bianry expression** ast
 
 ## Top Level Parser
 
@@ -178,10 +181,10 @@
 
 ## Prototype Parser
 
-* 处理函数原型
+* 处理<u>函数原型 (储存函数信息)</u>
   * def
+    * 读取函数原型后, 会再读取function的body
   * extern
-  * 函数声明
 * step
   1. 判断是否是prototype
   2. 读取函数名
@@ -192,9 +195,11 @@
 
 # <u>codegen</u>
 
-* Transfer AST into IR
-* 实现步骤
-  1. 给ExprAST(所有AST的父类)添加<u>codegen()</u>, 此function返回LLVM Value object的内存 (不使用智能指针, 直接使用指针)
+* **Transfer information from AST into IR**
+  * 每个AST拥有codegen方法
+  * codegen: 收集AST中的信息, 组合处理后, 传递信息到IRBuilder, 生成Value or Function
+* **实现步骤**
+  1. 给ExprAST(所有AST的父类)添加<u>codegen()</u>, 此function返回LLVM Value object or Function Object的内存 (不使用智能指针, 直接使用指针)
   2. 创建变量
      * **LLVMContext**
        * 黑盒子。拥有大量core llvm data, eg. constant value table
@@ -204,14 +209,18 @@
      * **Module**
        * LLVM IR用于储存代码的结构
          * 包括全部Value object的内存 (函数和全局变量)
+       * 用例
+         * 转换call expression ast时, 会根据name从Module中取出关于函数的信息
      * **NamedValues (map<string, value>)**
-       * 保存了映射关系: ast中保存的值 和 value
+       * 保存了映射关系: **LLVM Value的名字**和**LLVM Value本身**
   3. 把不同类型的AST转换成Value
-* **属性Value**
+     1. Expression AST (Basic和Binary)
+     2. Function AST (prototype)
+* **属性llvm::Value和llvm::Function**
   * codegen()产出的static single assignment
   * 为IR中的代码段, Value组成IR
 
-## AST -> Value(IR中的代码段)
+## Expression AST -> Value(IR中的代码段)
 
 * **Number expression**
 
@@ -233,3 +242,47 @@
   * 转换时, 会递归转换LHS和RHS。所以会**先转换最内层的LHS和RHS**。而**最内层的LHS和RHS是优先级高的Binary Operate Expression**
 
     AST结构例子: AST(a+AST(b*c))。会先转换AST(b * c)成Value, 添加到IR
+
+* **Call expression**
+
+  * step
+    1. 根据callee name， 从**TheModule**中获得对应的function **CalleeF**
+    2. 核对全局变量args的数量 和 **CalleeF**中记录的args数量
+    3. 遍历全局变量args, 挨个codegen, 储存到vector<Value*>。每次储存后检查codegen后结果
+    4. 调用IRBuilder的插入新instruction的方法, 添加call expression到ir
+
+## Fucntion AST -> Function(IR中的代码段)
+
+* **Prototype**
+
+  * step
+    1. 创建Vector<Type*> 储存args type
+    2. 创建**FunctionType**, 包括: 参数类型, 返回值类型, etc.
+    3. 创建**Function**, 包括: function type, linkage(因为function可能是在外部定义), name
+    4. 给arguements设置名字, 让IR可读性更高
+
+* **Function**
+
+  * 本compiler中, function的body只会有一句binary expression
+
+  * step
+
+    1. 检查**function prototype**是否被codegen过
+
+       * 如果没有，则先codegen prototype
+
+    2. 检查**function**是否是empty的
+
+       * 如果不是empty的，则说明应该redefined了，要报error
+
+    3. 创建**Basic Block**, 用于储存function body。并使用**IRBuilder**设置接下来的instruction要被插入这个Block中
+
+    4. 把arguments填充进NamedValue
+
+    5. codegen **function body**。并使用**IRBuilder**生成ret value
+
+       -------- 到此, function ast codegen 完成 ------
+
+    6. 使用**verifyFunction()**检测codegen的结果有没有问题。如果没有问题，return **FunctionObject**
+
+    7. 如果有问题, 清空这个function
